@@ -1,14 +1,44 @@
 {
-  "name": "togglevmix",
+  "name": "holymix",
   "version": "0.1.0",
   "private": true,
   "description": "API local e painel web para controlar os gatilhos do Holyrics ligados ao vMix",
-  "main": "src/main.js",
+  "main": "src/electron-main.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/main.js",
-    "dev": "node src/main.js",
-    "check": "node --check src/main.js && node --check src/renderer.js && node --check src/config.js && node --check src/trigger-state.js && node --check src/holyrics-adapter.js && node --check src/vmix-client.js"
+    "start": "electron .",
+    "start:web": "node src/main.js",
+    "dev": "electron .",
+    "dev:web": "node src/main.js",
+    "check": "node --check src/main.js && node --check src/electron-main.js && node --check src/config.js && node --check src/trigger-state.js && node --check src/holyrics-adapter.js && node --check src/vmix-client.js",
+    "build": "electron-builder --win zip",
+    "build:portable": "electron-builder --win portable",
+    "build:zip": "electron-builder --win zip"
+  },
+  "build": {
+    "appId": "com.holymix.app",
+    "productName": "HolyMix",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "config.example.json",
+        "to": "config.example.json"
+      }
+    ],
+    "win": {},
+    "portable": {
+      "artifactName": "HolyMix.exe"
+    }
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8"
   },
   "license": "MIT"
 }

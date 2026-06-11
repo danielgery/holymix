@@ -6,15 +6,22 @@ const DEFAULT_CONFIG = {
     host: '0.0.0.0',
     port: 5000,
   },
-  holyrics: {
-    triggerPauseMode: 'receiver',
-    tag: '',
-    receiver: '',
+  routes: [
+    { holyricsTriggerUrl: '/holyrics/project', vmixUrl: 'http://127.0.0.1/vmix/vmix-1' },
+    { holyricsTriggerUrl: '/holyrics/remove', vmixUrl: 'http://127.0.0.1/vmix/vmix-2' },
+  ],
+  vmixTimeoutMs: 3000,
+  ui: {
+    electron: true,
+    web: true,
   },
-  vmix: {
-    vmix1Url: 'http://127.0.0.1/vmix/vmix-1',
-    vmix2Url: 'http://127.0.0.1/vmix/vmix-2',
-    timeoutMs: 3000,
+  shortcut: {
+    toggle: 'Ctrl+G',
+    quit: 'Ctrl+Shift+Q',
+  },
+  notifications: {
+    onToggle: true,
+    onRoute: true,
   },
   state: {
     integrationEnabled: true,
@@ -23,20 +30,31 @@ const DEFAULT_CONFIG = {
 };
 
 function mergeConfig(base, override) {
+  const routes = Array.isArray(override.routes) && override.routes.length > 0
+    ? override.routes.map((r) => ({
+        holyricsTriggerUrl: r.holyricsTriggerUrl,
+        vmixUrl: r.vmixUrl,
+      }))
+    : base.routes;
+
   return {
     api: {
       host: override.api?.host || base.api.host,
       port: Number(override.api?.port || base.api.port),
     },
-    holyrics: {
-      triggerPauseMode: override.holyrics?.triggerPauseMode || base.holyrics.triggerPauseMode,
-      tag: override.holyrics?.tag || base.holyrics.tag,
-      receiver: override.holyrics?.receiver || base.holyrics.receiver,
+    routes,
+    vmixTimeoutMs: Number(override.vmixTimeoutMs || base.vmixTimeoutMs),
+    ui: {
+      electron: override.ui?.electron ?? base.ui.electron,
+      web: override.ui?.web ?? base.ui.web,
     },
-    vmix: {
-      vmix1Url: override.vmix?.vmix1Url || base.vmix.vmix1Url,
-      vmix2Url: override.vmix?.vmix2Url || base.vmix.vmix2Url,
-      timeoutMs: Number(override.vmix?.timeoutMs || base.vmix.timeoutMs),
+    shortcut: {
+      toggle: override.shortcut?.toggle || base.shortcut.toggle,
+      quit: override.shortcut?.quit || base.shortcut.quit,
+    },
+    notifications: {
+      onToggle: override.notifications?.onToggle ?? base.notifications.onToggle,
+      onRoute: override.notifications?.onRoute ?? base.notifications.onRoute,
     },
     state: {
       integrationEnabled: override.state?.integrationEnabled ?? base.state.integrationEnabled,
@@ -45,8 +63,24 @@ function mergeConfig(base, override) {
   };
 }
 
-function loadConfig(baseDir = path.resolve(__dirname, '..')) {
-  const configPath = path.resolve(baseDir, 'config.json');
+function getConfigDir() {
+  if (process.env.PORTABLE_EXECUTABLE_DIR) {
+    return process.env.PORTABLE_EXECUTABLE_DIR;
+  }
+
+  const executableDir = path.dirname(process.execPath || '');
+  const executableConfigPath = path.resolve(executableDir, 'config.json');
+
+  if (executableDir && fs.existsSync(executableConfigPath)) {
+    return executableDir;
+  }
+
+  return path.resolve(__dirname, '..');
+}
+
+function loadConfig(baseDir) {
+  const dir = baseDir || getConfigDir();
+  const configPath = path.resolve(dir, 'config.json');
 
   if (!fs.existsSync(configPath)) {
     return { ...DEFAULT_CONFIG };

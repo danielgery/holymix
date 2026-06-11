@@ -3,15 +3,28 @@
     "host": "0.0.0.0",
     "port": 5000
   },
-  "holyrics": {
-    "triggerPauseMode": "receiver",
-    "tag": "",
-    "receiver": ""
+  "routes": [
+    {
+      "holyricsTriggerUrl": "/holyrics/project",
+      "vmixUrl": "http://127.0.0.1/vmix/vmix-1"
+    },
+    {
+      "holyricsTriggerUrl": "/holyrics/remove",
+      "vmixUrl": "http://127.0.0.1/vmix/vmix-2"
+    }
+  ],
+  "vmixTimeoutMs": 3000,
+  "ui": {
+    "electron": true,
+    "web": true
   },
-  "vmix": {
-    "vmix1Url": "http://127.0.0.1/vmix/vmix-1",
-    "vmix2Url": "http://127.0.0.1/vmix/vmix-2",
-    "timeoutMs": 3000
+  "shortcut": {
+    "toggle": "Ctrl+G",
+    "quit": "Ctrl+Shift+Q"
+  },
+  "notifications": {
+    "onToggle": true,
+    "onRoute": true
   },
   "state": {
     "integrationEnabled": true

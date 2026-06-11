@@ -1,15 +1,9 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { createHolyricsAdapter } = require('./holyrics-adapter');
+const { requestVmix } = require('./vmix-client');
 const { getDefaultState, loadState, saveState } = require('./trigger-state');
 const { loadConfig } = require('./config');
-
-const APP_ROOT = path.resolve(__dirname, '..');
-const ROUTES = {
-  project: '/holyrics/project',
-  remove: '/holyrics/remove',
-};
 
 const STATIC_FILES = {
   '/': path.join(__dirname, 'renderer.html'),
@@ -28,7 +22,8 @@ const CONTENT_TYPES = {
 
 let config;
 let currentState;
-let holyricsAdapter;
+let routeMap;
+let routeListener = null;
 
 function log(...args) {
   if (!config?.logging) {
@@ -114,13 +109,14 @@ function getAppBaseUrl() {
 }
 
 function getRoutesInfo() {
-  return {
-    project: ROUTES.project,
-    remove: ROUTES.remove,
-  };
+  return config.routes.map((r) => ({
+    holyricsTriggerUrl: r.holyricsTriggerUrl,
+    vmixUrl: r.vmixUrl,
+    label: r.holyricsTriggerUrl.split('/').pop(),
+  }));
 }
 
-async function handleHolyricsRoute(pathname, res) {
+async function handleHolyricsRoute(route, res) {
   if (!currentState.integrationEnabled) {
     jsonResponse(res, 503, {
       success: false,
@@ -130,35 +126,35 @@ async function handleHolyricsRoute(pathname, res) {
     return;
   }
 
-  const targetUrl = pathname === ROUTES.project ? config.vmix.vmix1Url : config.vmix.vmix2Url;
-  const targetName = pathname === ROUTES.project ? 'vmix-1' : 'vmix-2';
-  const result = pathname === ROUTES.project ? await holyricsAdapter.project() : await holyricsAdapter.remove();
+  const result = await requestVmix(route.vmixUrl, config.vmixTimeoutMs);
 
   if (result.ok) {
     setLastAction({
-      endpoint: pathname,
-      targetName,
-      targetUrl,
+      endpoint: route.holyricsTriggerUrl,
+      targetUrl: route.vmixUrl,
       statusCode: result.statusCode,
       at: new Date().toISOString(),
     });
 
+    if (routeListener) {
+      routeListener(route);
+    }
+
     jsonResponse(res, 200, {
       success: true,
       integrationEnabled: true,
-      endpoint: pathname,
-      targetName,
-      targetUrl,
+      endpoint: route.holyricsTriggerUrl,
+      targetUrl: route.vmixUrl,
       statusCode: result.statusCode,
     });
     return;
   }
 
-  log('Falha ao chamar vMix', { endpoint: pathname, targetUrl, statusCode: result.statusCode });
+  log('Falha ao chamar vMix', { endpoint: route.holyricsTriggerUrl, targetUrl: route.vmixUrl, statusCode: result.statusCode });
   jsonResponse(res, 502, {
     success: false,
     integrationEnabled: true,
-    endpoint: pathname,
+    endpoint: route.holyricsTriggerUrl,
     error: 'Erro ao comunicar com vMix',
     statusCode: result.statusCode,
   });
@@ -171,7 +167,7 @@ function createServer() {
       const pathname = url.pathname;
       const method = req.method || 'GET';
 
-      if (STATIC_FILES[pathname] && method === 'GET') {
+      if (config.ui.web && STATIC_FILES[pathname] && method === 'GET') {
         sendFile(res, STATIC_FILES[pathname]);
         return;
       }
@@ -184,6 +180,7 @@ function createServer() {
           lastAction: currentState.lastAction || null,
           routes: getRoutesInfo(),
           baseUrl: getAppBaseUrl(),
+          shortcut: config.shortcut,
         });
         return;
       }
@@ -209,12 +206,13 @@ function createServer() {
           lastAction: updatedState.lastAction || null,
           routes: getRoutesInfo(),
           baseUrl: getAppBaseUrl(),
+          shortcut: config.shortcut,
         });
         return;
       }
 
-      if ((pathname === ROUTES.project || pathname === ROUTES.remove) && (method === 'GET' || method === 'POST')) {
-        await handleHolyricsRoute(pathname, res);
+      if (routeMap[pathname] && (method === 'GET' || method === 'POST')) {
+        await handleHolyricsRoute(routeMap[pathname], res);
         return;
       }
 
@@ -243,9 +241,12 @@ function createServer() {
 }
 
 async function start() {
-  config = loadConfig(APP_ROOT);
+  config = loadConfig();
   currentState = loadState(config) || getDefaultState(config);
-  holyricsAdapter = createHolyricsAdapter(config);
+  routeMap = {};
+  for (const route of config.routes) {
+    routeMap[route.holyricsTriggerUrl] = route;
+  }
   const server = createServer();
 
   await new Promise((resolve) => {
@@ -253,7 +254,7 @@ async function start() {
   });
 
   log(`API escutando em ${getAppBaseUrl()}`);
-  log(`Rotas Holyrics: ${ROUTES.project} e ${ROUTES.remove}`);
+  log(`Rotas configuradas: ${config.routes.map((r) => r.holyricsTriggerUrl).join(', ')}`);
   log('Abra a interface no navegador apontando para a URL acima.');
 
   const shutdown = () => {
@@ -271,7 +272,12 @@ if (require.main === module) {
   });
 }
 
+function onRouteTriggered(listener) {
+  routeListener = listener;
+}
+
 module.exports = {
   start,
   setIntegrationEnabled,
+  onRouteTriggered,
 };

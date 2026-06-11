@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Toggle vMix</title>
+    <title>HolyMix</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -11,8 +11,8 @@
       <section class="hero">
         <div>
           <p class="eyebrow">API local + painel web</p>
-          <h1>Toggle vMix</h1>
-          <p class="subtitle">Controle a integracao Holyrics e vMix em uma pagina leve, sem Electron.</p>
+          <h1>HolyMix</h1>
+          <p class="subtitle">Controle a integracao Holyrics e vMix.</p>
         </div>
         <div class="status-pill" id="statusPill">Carregando</div>
       </section>
@@ -31,18 +31,12 @@
 
         <article class="card">
           <p class="label">Rotas Holyrics</p>
-          <ul class="route-list">
-            <li><code>/holyrics/project</code> -> chama <code>vmix-1</code></li>
-            <li><code>/holyrics/remove</code> -> chama <code>vmix-2</code></li>
-          </ul>
+          <ul class="route-list" id="routeList"></ul>
         </article>
 
         <article class="card">
           <p class="label">Teste manual</p>
-          <div class="button-row">
-            <button id="projectButton" type="button" class="ghost">Acionar project</button>
-            <button id="removeButton" type="button" class="ghost">Acionar remove</button>
-          </div>
+          <div class="button-row" id="testButtons"></div>
           <p class="detail" id="actionResult">Nenhuma acao executada ainda.</p>
         </article>
 

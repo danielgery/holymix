@@ -5,8 +5,8 @@ const footerLabel = document.getElementById('footerLabel');
 const statusPill = document.getElementById('statusPill');
 const actionResult = document.getElementById('actionResult');
 const baseUrlLabel = document.getElementById('baseUrlLabel');
-const projectButton = document.getElementById('projectButton');
-const removeButton = document.getElementById('removeButton');
+const routeList = document.getElementById('routeList');
+const testButtons = document.getElementById('testButtons');
 
 let currentState = null;
 
@@ -39,18 +39,37 @@ function renderState(payload) {
   statusPill.textContent = enabled ? 'Ativa' : 'Desligada';
   statusPill.classList.toggle('is-off', !enabled);
   footerLabel.textContent = enabled
-    ? 'As rotas Holyrics vao encaminhar para vMix 1 e 2.'
+    ? `As ${payload.routes.length} rotas Holyrics vao encaminhar para os destinos configurados.`
     : 'As rotas Holyrics respondem com erro controlado 503.';
   detailLabel.textContent = payload.lastAction
     ? `Ultima acao: ${payload.lastAction.endpoint} em ${new Date(payload.lastAction.at).toLocaleString()}`
     : 'Nenhuma acao executada ainda.';
   baseUrlLabel.textContent = payload.baseUrl || 'http://127.0.0.1:5000';
+
+  if (payload.shortcut && payload.shortcut.toggle) {
+    bindShortcut(payload.shortcut.toggle);
+  }
+
+  if (Array.isArray(payload.routes)) {
+    routeList.innerHTML = payload.routes
+      .map((r) => `<li><code>${r.holyricsTriggerUrl}</code> -> chama <code>${r.vmixUrl}</code></li>`)
+      .join('');
+
+    testButtons.innerHTML = '';
+    payload.routes.forEach((r) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ghost';
+      btn.textContent = `Acionar /${r.label}`;
+      btn.addEventListener('click', () => runHolyricsRoute(r.holyricsTriggerUrl, r.label));
+      testButtons.appendChild(btn);
+    });
+  }
 }
 
 function setBusy(isBusy) {
   toggleButton.disabled = isBusy;
-  projectButton.disabled = isBusy;
-  removeButton.disabled = isBusy;
+  testButtons.querySelectorAll('button').forEach((btn) => { btn.disabled = isBusy; });
 }
 
 async function refreshState() {
@@ -75,26 +94,58 @@ async function runHolyricsRoute(route, label) {
   setBusy(true);
   try {
     const payload = await api(route, { method: 'POST', body: '{}' });
-    actionResult.textContent = `${label} enviado com sucesso para ${payload.targetName}.`;
+    actionResult.textContent = `/${label} enviado com sucesso para ${payload.targetUrl}.`;
     await refreshState();
   } catch (error) {
-    actionResult.textContent = `Erro ao executar ${label}: ${error.message}`;
+    actionResult.textContent = `Erro ao executar /${label}: ${error.message}`;
   } finally {
     setBusy(false);
   }
 }
 
 toggleButton.addEventListener('click', toggleIntegration);
-projectButton.addEventListener('click', () => runHolyricsRoute('/holyrics/project', 'project'));
-removeButton.addEventListener('click', () => runHolyricsRoute('/holyrics/remove', 'remove'));
+
+function parseShortcut(shortcutStr) {
+  const parts = shortcutStr.toLowerCase().split('+').map((s) => s.trim());
+  const key = parts.pop();
+  const modifiers = { ctrl: false, alt: false, shift: false, meta: false };
+  for (const mod of parts) {
+    if (mod === 'ctrl' || mod === 'control' || mod === 'commandorcontrol') modifiers.ctrl = true;
+    else if (mod === 'alt') modifiers.alt = true;
+    else if (mod === 'shift') modifiers.shift = true;
+    else if (mod === 'meta' || mod === 'super') modifiers.meta = true;
+  }
+  return { key, modifiers };
+}
+
+let boundShortcut = null;
+
+function bindShortcut(shortcutStr) {
+  if (boundShortcut === shortcutStr) return;
+  boundShortcut = shortcutStr;
+
+  const parsed = parseShortcut(shortcutStr);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== parsed.key) return;
+    if (e.ctrlKey !== parsed.modifiers.ctrl) return;
+    if (e.altKey !== parsed.modifiers.alt) return;
+    if (e.shiftKey !== parsed.modifiers.shift) return;
+    if (e.metaKey !== parsed.modifiers.meta) return;
+    e.preventDefault();
+    toggleIntegration();
+  });
+}
+
+if (window.toggleVmix && window.toggleVmix.onStateChanged) {
+  window.toggleVmix.onStateChanged((payload) => renderState(payload));
+}
 
 refreshState().catch((error) => {
   stateLabel.textContent = 'ERRO';
   detailLabel.textContent = error.message;
   footerLabel.textContent = 'Verifique se a API local esta rodando.';
   toggleButton.disabled = true;
-  projectButton.disabled = true;
-  removeButton.disabled = true;
   statusPill.textContent = 'Offline';
   statusPill.classList.add('is-off');
 });
